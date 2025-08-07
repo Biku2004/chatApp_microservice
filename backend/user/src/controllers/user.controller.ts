@@ -1,5 +1,8 @@
+import { generateToken } from "../config/generateToken.js";
 import { publishToQueue } from "../config/rabbitmq.config.js";
 import TryCatch from "../config/TryCatch.js";
+import { AuthenticatedRequest } from "../middlewares/isauth.middleware.js";
+import { User } from "../models/User.js";
 import { redisClient } from "../utils/redis.utils.js";
 
 
@@ -41,4 +44,84 @@ export const loginUser = TryCatch( async(req,res)=>{
     });
     
 
+});
+
+export const verifyUser = TryCatch(async(req,res)=>{
+    const {email, otp:enteredOtp} = req.body;
+
+    if(!email || !enteredOtp){
+        res.status(400).json({
+            message: "Email and OTP required",
+        });
+        return;
+    }
+
+    // getting the otp key from redis
+    const otpKey = `otp:${email}`;
+    
+    const storedOtp = await redisClient.get(otpKey);
+
+    if(!storedOtp || storedOtp!== enteredOtp){
+        res.status(400).json({
+            success:false,
+            message: "Invalid or expired OTP"
+        });
+        return;
+    }
+
+    await redisClient.del(otpKey);
+
+    let user = await User.findOne({email});
+    if(!user){
+        const name = email.slice(0,8);
+        user = await User.create({name,email});
+    }
+
+    const token = generateToken(user);
+    res.json({
+        message:"User verified",
+        user,
+        token
+    });
+
+});
+
+export const myProfile = TryCatch(async(req:AuthenticatedRequest,res) =>{
+    const user = req.user;
+
+    res.json(user);
+});
+
+export const updateName = TryCatch(async(req:AuthenticatedRequest,res)=>{
+    const user = await User.findById(req.user?._id);
+
+    if(!user){
+        res.status(404).json({
+            message:"Please login",
+        });
+        return;
+    }
+
+    user.name = req.body.name;
+
+    await user.save();
+
+    const token = generateToken(user);
+    res.json({
+        message:"User name updated",
+        user,
+        token,
+    });
+
+});
+
+export const getAllUsers = TryCatch(async(req:AuthenticatedRequest,res)=>{
+    const user = await User.find();
+
+    res.json(user);
+});
+
+export const getAUser = TryCatch(async(req,res)=>{
+    const user = await  User.findById(req.params.id);
+    res.json(user);
 })
