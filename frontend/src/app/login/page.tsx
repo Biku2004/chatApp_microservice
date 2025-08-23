@@ -1,32 +1,41 @@
+/* eslint-disable */
+
 "use client";
 
 import axios from 'axios';
 import { ArrowRight, Loader2, Mail } from 'lucide-react'
-import { useRouter } from 'next/navigation';
-import React, { useState } from 'react'
+import { redirect, useRouter } from 'next/navigation';
+import { useAppData, user_service } from '../context/AppContext';
+import { useState } from 'react';
+import Loading from '../components/Loading';
+import toast from 'react-hot-toast';
 
 const page = () => {
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState<boolean>(false);
     const router = useRouter();
 
+    const {isAuth,loading:userLoading} = useAppData();
+
     const handleSubmit = async(e: React.FormEvent<HTMLElement>):Promise<void> => {
         e.preventDefault();
         setLoading(true);
         try {
-            const {data} = await axios.post(`http://localhost:5000/api/v1/login`, {email});
+            const {data} = await axios.post(`${user_service}/api/v1/login`, {email});
             
-            alert(data.message);
+            toast.success(data.message);
             router.push(`/verify?email=${email}`);
             
         } catch (error:any) {
-            alert(error.response.data.message);
+            toast.error(error.response.data.message);
         }
         finally{
             setLoading(false);
         }
     }
 
+    if(userLoading) return <Loading />
+    if(isAuth) redirect("/chat");
 
   return (
     <>
@@ -88,4 +97,4 @@ const page = () => {
   )
 }
 
-export default page
+export default page;
